@@ -9,10 +9,10 @@ module DeviseTokenAuth
     # not support multiple models, so we must resort to this terrible hack.
     def redirect_callbacks
 
-      # derive target redirect route from 'resource_class' param, which was set
+      # derive target redirect route from 'user_resource_class' param, which was set
       # before authentication.
       devise_mapping = [request.env['omniauth.params']['namespace_name'],
-                        request.env['omniauth.params']['resource_class'].underscore.gsub('/', '_')].compact.join('_')
+                        request.env['omniauth.params']['user_resource_class'].underscore.gsub('/', '_')].compact.join('_')
       path = "#{Devise.mappings[devise_mapping.to_sym].fullpath}/#{params[:provider]}/callback"
       klass = request.scheme == 'https' ? URI::HTTPS : URI::HTTP
       redirect_route = klass.build(host: request.host, port: request.port, path: path).to_s
@@ -68,7 +68,7 @@ module DeviseTokenAuth
           @_omniauth_params ||= session.delete('dta.omniauth.params')
           @_omniauth_params
         elsif params['omniauth_window_type']
-          @_omniauth_params = params.slice('omniauth_window_type', 'auth_origin_url', 'resource_class', 'origin')
+          @_omniauth_params = params.slice('omniauth_window_type', 'auth_origin_url', 'user_resource_class', 'origin')
         else
           @_omniauth_params = {}
         end
@@ -96,18 +96,18 @@ module DeviseTokenAuth
       }
     end
 
-    def resource_class(mapping = nil)
-      if omniauth_params['resource_class']
-        omniauth_params['resource_class'].constantize
-      elsif params['resource_class']
-        params['resource_class'].constantize
+    def user_resource_class(mapping = nil)
+      if omniauth_params['user_resource_class']
+        omniauth_params['user_resource_class'].constantize
+      elsif params['user_resource_class']
+        params['user_resource_class'].constantize
       else
-        raise "No resource_class found"
+        raise "No user_resource_class found"
       end
     end
 
     def resource_name
-      resource_class
+      user_resource_class
     end
 
     def omniauth_window_type
@@ -142,7 +142,7 @@ module DeviseTokenAuth
     def devise_mapping
       if omniauth_params
         Devise.mappings[[omniauth_params['namespace_name'],
-                         omniauth_params['resource_class'].underscore].compact.join('_').to_sym]
+                         omniauth_params['user_resource_class'].underscore].compact.join('_').to_sym]
       else
         request.env['devise.mapping']
       end
@@ -230,7 +230,7 @@ module DeviseTokenAuth
 
     def get_resource_from_auth_hash
       # find or create user by provider and provider uid
-      @resource = resource_class.where({
+      @resource = user_resource_class.where({
         uid:      auth_hash['uid'],
         provider: auth_hash['provider']
       }).first_or_initialize

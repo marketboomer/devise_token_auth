@@ -65,13 +65,13 @@ module ActionDispatch::Routing
             match "#{DeviseTokenAuth.omniauth_prefix}/failure", controller: omniauth_ctrl, action: "omniauth_failure", via: [:get, :post]
 
             # preserve the resource class thru oauth authentication by setting name of
-            # resource as "resource_class" param
+            # resource as "user_resource_class" param
             match "#{full_path}/:provider", to: redirect{|params, request|
               # get the current querystring
               qs = CGI::parse(request.env["QUERY_STRING"])
 
               # append name of current resource
-              qs["resource_class"] = [resource]
+              qs["user_resource_class"] = [resource]
               qs["namespace_name"] = [namespace_name] if namespace_name
 
               set_omniauth_path_prefix!(DeviseTokenAuth.omniauth_prefix)

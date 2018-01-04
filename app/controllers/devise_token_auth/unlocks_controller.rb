@@ -32,7 +32,7 @@ module DeviseTokenAuth
     end
 
     def show
-      @resource = resource_class.unlock_access_by_token(params[:unlock_token])
+      @resource = user_resource_class.unlock_access_by_token(params[:unlock_token])
 
       if @resource && @resource.id
         client_id  = SecureRandom.urlsafe_base64(nil, false)
