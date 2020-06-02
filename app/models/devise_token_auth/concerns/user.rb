@@ -106,6 +106,21 @@ module DeviseTokenAuth::Concerns::User
       send_devise_notification(:unlock_instructions, raw, opts)
       raw
     end
+
+    def create_token(client_id: nil, **token_extras)
+      token = SecureRandom.urlsafe_base64(nil, false)
+      token_hash = ::BCrypt::Password.create(token)
+      expiry = (Time.now + token_lifespan).to_i
+
+      self.tokens[client_id] = {
+        token:      token_hash,
+        expiry:     expiry
+      }.merge!(token_extras)
+
+      clean_old_tokens
+
+      token
+    end
   end
 
   module ClassMethods
@@ -184,20 +199,16 @@ module DeviseTokenAuth::Concerns::User
   def create_new_auth_token(client_id=nil)
     client_id  ||= SecureRandom.urlsafe_base64(nil, false)
     last_token ||= nil
-    token        = SecureRandom.urlsafe_base64(nil, false)
-    token_hash   = ::BCrypt::Password.create(token)
-    expiry       = (Time.now + token_lifespan).to_i
 
     if self.tokens[client_id] && self.tokens[client_id]['token']
       last_token = self.tokens[client_id]['token']
     end
 
-    self.tokens[client_id] = {
-      token:      token_hash,
-      expiry:     expiry,
+    token = create_token(
+      client_id: client_id,
       last_token: last_token,
       updated_at: Time.now
-    }
+    )
 
     return update_auth_header(token, client_id)
   end
@@ -218,6 +229,9 @@ module DeviseTokenAuth::Concerns::User
   end
 
   def update_auth_header(token, client_id='default')
+    # Don't touch this method!
+    # We have #clean_old_tokens but it's best to update the library
+
     headers = build_auth_header(token, client_id)
     expiry = headers[DeviseTokenAuth.headers_names[:"expiry"]]
     max_clients = DeviseTokenAuth.max_number_of_devices
@@ -286,4 +300,16 @@ module DeviseTokenAuth::Concerns::User
     end
   end
 
+  def max_client_tokens_exceeded?
+    tokens.keys.length > DeviseTokenAuth.max_number_of_devices
+  end
+
+  def clean_old_tokens
+    # From https://github.com/lynndylanhurley/devise_token_auth/blob/master/app/models/devise_token_auth/concerns/user.rb#L243
+    if tokens.present? && max_client_tokens_exceeded?
+      self.tokens = tokens.sort_by { |_cid, v| v[:expiry] || v['expiry'] }.to_h
+
+      tokens.shift while max_client_tokens_exceeded?
+    end
+  end
 end
